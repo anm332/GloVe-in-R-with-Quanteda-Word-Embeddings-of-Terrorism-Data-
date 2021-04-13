@@ -22,3 +22,14 @@ The current sample of data includes 151 text documents.
 - Lines 153-167 = Generating the word vectors
 - Lines 172-241 = Examining term representations/word vector similarity for common/frequent terms in both sets of data ("power", "fighting", and "movement")
 - Lines 244-285 = Plotting the word embeddings (50) in 2d space for each dataset
+
+
+# Resources I found helpful while working:
+- https://quanteda.io/articles/pkgdown/replication/text2vec.html 
+- https://github.com/prodriguezsosa/EmbeddingsPaperReplication
+- http://text2vec.org/glove.html#glove_algorithm
+- https://m-clark.github.io/text-analysis-with-R/word-embeddings.html
+- https://smltar.com/embeddings.html
+- https://rstudio-pubs-static.s3.amazonaws.com/132792_864e3813b0ec47cb95c7e1e2e2ad83e7.html
+
+
