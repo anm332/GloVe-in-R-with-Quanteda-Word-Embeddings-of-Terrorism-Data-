@@ -1,4 +1,4 @@
-# GloVe_inRwith_Quanteda_terrorismdata
+# GloVe in R using Quanteda package 
 Comparing word embeddings of terrorism text documents and non-terrorism text documents
 
 # The data:
