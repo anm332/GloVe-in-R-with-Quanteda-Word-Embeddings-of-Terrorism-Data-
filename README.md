@@ -2,8 +2,8 @@
 Comparing word embeddings of terrorism text documents and non-terrorism text documents
 
 # The data:
-Terrorism text document data = "only_tertext_data.csv"
-Non-terrorism text document data = "only_nontertext_data.csv"
+- Terrorism text document data = "only_tertext_data.csv"
+- Non-terrorism text document data = "only_nontertext_data.csv"
 
 Data was collected from a myriad of online sources, and the text documents obtained include online interviews, prison interviews, magazine articles, Tweets, and other samples of text (written and spoken) both from members of terrorist organizations and from members of non-terrorist organizations. 
 
