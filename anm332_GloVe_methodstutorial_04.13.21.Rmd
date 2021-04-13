@@ -1,0 +1,367 @@
+---
+title: "anm332_GloVe_methodstutorial_04.14.21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+https://quanteda.io/articles/pkgdown/replication/text2vec.html
+
+
+Library the necessary packages
+```{r}
+library(quanteda)
+library(devtools)# get devtools to install quanteda.corpora
+#devtools::install_github("quanteda/quanteda.corpora")
+#install.packages("quanteda.textstats")
+library(quanteda.textstats)
+library(quanteda.corpora)
+library(tidytext)
+library(tm)
+```
+
+Read in the data, clean, preprocess, create matrix and corpus
+```{r}
+# Read in the data: ####################################################################### 
+
+# terrorism data: 
+ter_df <- read.csv("/Users/amandamoeller/Desktop/PLSC 597 ML/Methods Tutorial.nosync/only_tertext_data.csv")
+ter_df$rawtext <- ter_df$Text..raw.data. # change name of text variable
+
+# non-terrorism data: 
+nonter_df <- read.csv("/Users/amandamoeller/Desktop/PLSC 597 ML/Methods Tutorial.nosync/only_nontertext_data.csv")
+
+
+# clean up both sets of data (normalization): ############################################
+ter_df$rawtext <- tolower(ter_df$rawtext)
+ter_df$rawtext <- removeNumbers(ter_df$rawtext)
+ter_df$rawtext <- removePunctuation(ter_df$rawtext)
+# removeWords(ter_df$rawtext, stopwords("english")) # this didn't work?
+tokens_remove(tokens(ter_df$rawtext, remove_punct = TRUE), stopwords("english")) #ok this worked
+
+nonter_df$rawtext <- tolower(nonter_df$rawtext)
+nonter_df$rawtext <- removeNumbers(nonter_df$rawtext)
+nonter_df$rawtext <- removePunctuation(nonter_df$rawtext)
+# removeWords(ter_df$rawtext, stopwords("english")) # this didn't work?
+tokens_remove(tokens(nonter_df$rawtext, remove_punct = TRUE), stopwords("english")) #ok this worked
+
+
+
+# Create the corpus and matrices for terrorism and non-terrorism data: ################################## 
+
+# 1) terrorism corpus, matrix
+ter_corp <- corpus(ter_df, text_field="rawtext")
+ter_dfm <- dfm(ter_corp, remove_punct = TRUE, remove = stopwords('en')) # for example, stop words are still in here???
+ter_dfm # here's the terrorism corpus
+
+ter_corp_matrix <- as.matrix(ter_corp) # here's the terrorism corpus as a matrix
+ter_corp_df <- data.frame(text = sapply(ter_corp, as.character), stringsAsFactors = FALSE) # here's the terrorism corpus as a df
+
+# 2) non-terrorism corpus, matrix
+nonter_corp <- corpus(nonter_df, text_field="rawtext")
+nonter_dfm <- dfm(nonter_corp, remove_punct = TRUE, remove = stopwords('en'))
+nonter_dfm
+
+nonter_corp_matrix <- as.matrix(nonter_corp)
+nonter_corp_df <- data.frame(text = sapply(nonter_corp, as.character), stringsAsFactors = FALSE)
+```
+
+Tokenize the corpus and then get the names of the features that occur 5+ times. Trimming the features before constructing the fcm:
+```{r}
+#wiki_toks <- tokens(wiki_corp)
+#feats <- dfm(wiki_toks, verbose = TRUE) %>%
+    #dfm_trim(min_termfreq = 5) %>%
+    #featnames()
+
+########## for terrorism:
+
+ter_toks <- tokens(ter_corp)
+t_feats <- dfm(ter_toks, verbose = TRUE) %>%
+    dfm_trim(min_termfreq = 5) %>%
+    featnames()
+
+t_feats
+
+########## for non-terrorism:
+nonter_toks <- tokens(nonter_corp)
+nt_feats <- dfm(nonter_toks, verbose = TRUE) %>%
+    dfm_trim(min_termfreq = 5) %>%
+    featnames()
+
+nt_feats
+```
+Creating a dfm from a tokens input...
+ ...lowercasing
+ ...found 151 documents, 7,764 features
+ ...complete, elapsed time: 0.048 seconds.
+Finished constructing a 151 x 7,764 sparse dfm.
+
+
+Leave the pads so that non-adjacent words will not become adjacent
+Not sure if this is necessary? But basically just replaces empty strings if tokens are removed later
+```{r}
+ter_toks <- tokens_select(ter_toks, t_feats, padding = TRUE)
+ter_toks
+
+nonter_toks <- tokens_select(nonter_toks, nt_feats, padding = TRUE)
+nonter_toks
+```
+
+Construct the feature co-occurrence matrix
+```{r}
+# terrorism:
+ter_fcm <- fcm(ter_toks, context = "window", count = "weighted", weights = 1 / (1:5), tri = TRUE)
+ter_fcm
+
+# non-terrorism:
+nonter_fcm <- fcm(nonter_toks, context = "window", count = "weighted", weights = 1 / (1:5), tri = TRUE)
+nonter_fcm
+
+# looks like stop words are still in it. the, to, of, etc. Need to figure out how to remove those 
+```
+
+Fit word embedding model
+Fit the GloVe model using rsparse.
+```{r}
+library(text2vec)
+
+# ter:
+ter_glove <- GlobalVectors$new(rank = 50, x_max = 10)
+ter_wv_main <- ter_glove$fit_transform(ter_fcm, n_iter = 10,
+                               convergence_tol = 0.01, n_threads = 8)
+
+dim(ter_wv_main)
+ter_wv_main
+
+# nnon-ter:
+nonter_glove <- GlobalVectors$new(rank = 50, x_max = 10)
+nonter_wv_main <- nonter_glove$fit_transform(nonter_fcm, n_iter = 10,
+                               convergence_tol = 0.01, n_threads = 8)
+
+dim(nonter_wv_main)
+nonter_wv_main
+```
+INFO  [23:30:41.506] epoch 10, loss 0.0212 (terrorism)
+INFO  [10:43:50.439] epoch 10, loss 0.0330 (non-terrorism)
+
+
+"Averaging learned word vectors
+The two vectors are main and context. According to the Glove paper, averaging the two word vectors results in more accurate representation."
+```{r}
+# t:
+ter_wv_context <- ter_glove$components
+dim(ter_wv_context)
+## [1]    50 2082
+ter_word_vectors <- ter_wv_main + t(ter_wv_context)
+ter_word_vectors
+
+# nt:
+nonter_wv_context <- nonter_glove$components
+dim(nonter_wv_context)
+## 50 929
+nonter_word_vectors <- nonter_wv_main + t(nonter_wv_context)
+nonter_word_vectors
+```
+
+
+Examining term representations
+Aka we're finding word vectors that are the most similar to each other
+```{r}
+library(quanteda.textstats)
+
+# I'm most interested in looking at "power", "fighting", "movement"
+# (THESE ARE COMMON TO BOTH TER AND NON-TER DOCUMENTS AND USED 10+ TIMES IN BOTH CORPUSES -- this is discovered later in the code, I just need to reorganize the code later)
+
+
+#Terrorism and POWER: ##########################################################
+ter_pow <- ter_word_vectors["power", , drop=FALSE]
+
+terpow_cos_sim <- textstat_simil(x=as.dfm(ter_word_vectors), y=as.dfm(ter_pow),
+                          method="cosine")
+head(sort(terpow_cos_sim[, 1], decreasing = TRUE), 10)
+#     power       our  interest   victims     since   culture    simple     faith      this  religion 
+# 1.0000000 0.4186855 0.3717540 0.3601933 0.3539113 0.3503652 0.3448984 0.3350568 0.3218579 0.3166358 
+
+# Non-terrorism and POWER:
+nonter_pow <- nonter_word_vectors["power", , drop=FALSE]
+
+nonterpow_cos_sim <- textstat_simil(x=as.dfm(nonter_word_vectors), y=as.dfm(nonter_pow),
+                          method="cosine")
+head(sort(nonterpow_cos_sim[, 1], decreasing = TRUE), 10)
+#  power            my         march      prasadam      together         right           its revolutionary       protect 
+# 1.0000000     0.5043184     0.4761917     0.4500863     0.4411783     0.4327637     0.4314553     0.4016746     0.3831767 
+#         work 
+#    0.3691006 
+
+
+
+#Terrorism and FIGHTING: ##########################################################
+ter_fighting <- ter_word_vectors["fighting", , drop=FALSE]
+
+terfighting_cos_sim <- textstat_simil(x=as.dfm(ter_word_vectors), y=as.dfm(ter_fighting),
+                          method="cosine")
+head(sort(terfighting_cos_sim[, 1], decreasing = TRUE), 10)
+# fighting       them       sons      those supporting      allah     become      islām        all  peninsula 
+# 1.0000000  0.5288757  0.4493841  0.4266149  0.4172160  0.4110513  0.3817323  0.3709447  0.3629710  0.3623832 
+
+
+# Non-terrorism and FIGHTING:
+nonter_fighting <- nonter_word_vectors["fighting", , drop=FALSE]
+
+nonterfighting_cos_sim <- textstat_simil(x=as.dfm(nonter_word_vectors), y=as.dfm(nonter_fighting),
+                          method="cosine")
+head(sort(nonterfighting_cos_sim[, 1], decreasing = TRUE), 10)
+# fighting          im   including   achieving  principles     restore       point       least     methods afghanistan 
+# 1.0000000   0.5389822   0.4579108   0.4116088   0.4005523   0.3992339   0.3971297   0.3969467   0.3901475   0.3886486 
+
+
+#Terrorism and movement: ##########################################################
+ter_movement <- ter_word_vectors["movement", , drop=FALSE]
+
+termovement_cos_sim <- textstat_simil(x=as.dfm(ter_word_vectors), y=as.dfm(ter_movement),
+                          method="cosine")
+head(sort(termovement_cos_sim[, 1], decreasing = TRUE), 10)
+# movement environmental        reform         black       support        animal        rights          jews           for 
+# 1.0000000     0.5020501     0.4965203     0.4597535     0.4431389     0.4205784     0.4059399     0.3860838     0.3834980 
+#         harm 
+#    0.3753824 
+
+# Non-terrorism and MOVEMENT:
+nonter_movement <- nonter_word_vectors["movement", , drop=FALSE]
+
+nontermovement_cos_sim <- textstat_simil(x=as.dfm(nonter_word_vectors), y=as.dfm(nonter_movement),
+                          method="cosine")
+head(sort(nontermovement_cos_sim[, 1], decreasing = TRUE), 10)
+#movement    should      back      have      been      will    around        we therefore        be 
+# 1.0000000 0.4338365 0.4009519 0.3563422 0.3516061 0.3502377 0.3359636 0.3346836 0.3306835 0.3213814 
+
+```
+
+Plot word embeddings in 2d space:
+```{r}
+#install.packages("irlba")
+library(irlba)
+
+ter_svd <- irlba(ter_dfm, 2, maxit=500)
+
+#next we output the word vectors:
+ter_word_vectors <- ter_svd$u
+rownames(ter_word_vectors) <- rownames(ter_dfm)
+
+
+# use ter_wv_main and nonter_wv_main vectors instead
+
+#terrorism:
+
+#grab 50 words
+ter_forplot<-as.data.frame(ter_wv_main[50:100,])
+ter_forplot$word<-rownames(ter_forplot)
+
+#now plot
+library(ggplot2)
+ggplot(ter_forplot, aes(x=V1, y=V2, label=word))+
+  geom_text(aes(label=word),hjust=0, vjust=0, color="blue")+
+  theme_minimal()+
+  xlab("First Dimension Created by GloVe")+
+  ylab("Second Dimension Created by GloVe")
+
+
+# nnon-terrorism:
+
+#grab 50 words
+nonter_forplot<-as.data.frame(nonter_wv_main[50:100,])
+nonter_forplot$word<-rownames(nonter_forplot)
+
+#now plot
+library(ggplot2)
+ggplot(nonter_forplot, aes(x=V1, y=V2, label=word))+
+  geom_text(aes(label=word),hjust=0, vjust=0, color="blue")+
+  theme_minimal()+
+  xlab("First Dimension Created by GloVe")+
+  ylab("Second Dimension Created by GloVe")
+```
+
+
+DOCUMENT FREQUENCY MATRICES BELOW
+```{r}
+library(gdata)
+
+# 1) Terrorism dfm:
+
+# dfm = document-feature matrix
+t_dfm <- dfm(ter_corp, ignoredFeatures = stopwords("english"), stem = TRUE)
+
+t_dfm <- trim(t_dfm, minDoc = minDoc, minCount = minCount)
+t_dfm
+
+plotDFM <- function(t_dfm)
+t_dfm_plot <- plot(t_dfm)
+
+
+# 2) Non-terrorism dfm:
+nt_dfm <- dfm(nonter_corp, ignoredFeatures = stopwords("english"), stem = TRUE)
+
+nt_dfm <- trim(nt_dfm, minDoc = minDoc, minCount = minCount)
+nt_dfm
+
+plotDFM2 <- function(nt_dfm)
+nt_dfm_plot <- plot(nt_dfm)
+
+
+```
+
+NOW GENERATE FREQUENT TERMS IN T AND NT TDM (term doc matrix)
+```{r}
+
+## tokenize text in dfs:
+library(tokenizers)
+
+ter_df$ttokens <- tokenize_words(ter_df$rawtext)
+ttokens <- tokenize_words(ter_df$rawtext)
+
+nonter_df$ntokens <- tokenize_words(nonter_df$rawtext)
+ntokens <- tokenize_words(nonter_df$rawtext)
+
+
+##### create terrorism TDM (term doc matrix):
+
+## 1: df to corpus
+corp_ter <- VCorpus(VectorSource(ter_df$ttokens))
+
+## 2: corpus to tdm
+t_tdm <- TermDocumentMatrix(corp_ter)
+
+## 3: findFreqTerms(tdm)
+findFreqTerms(t_tdm, lowfreq=10, highfreq=Inf)
+
+
+##### create non-terrorism TDM (term doc matrix):
+
+## 1: df to corpus
+corp_nt <- VCorpus(VectorSource(nonter_df$ntokens)) 
+
+## 2: corpus to tdm
+nt_tdm <- TermDocumentMatrix(corp_nt)
+
+## 3: findFreqTerms(tdm)
+findFreqTerms(nt_tdm, lowfreq=10, highfreq=Inf)
+
+
+
+### COMMON WORDS:
+# American, believe, country, fighting, government/s, good, religion, world, action, economic, human, media, movement, nation, power, rights, support, violent, 
+
+
+# I'm most interested in looking at "power", "fighting", "movement"
+
+```
+
+
+WHAT I NEED HELP WITH: 
+- removing stopwords and stemming (I did this in the code early on, but it didn't seem to actually remove all the stop words)
+- plot word embeddings of target words (visualize findings from lines 170-241)
+
+
