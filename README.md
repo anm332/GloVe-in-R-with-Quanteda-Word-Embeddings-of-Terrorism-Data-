@@ -31,5 +31,6 @@ The current sample of data includes 151 text documents.
 - https://m-clark.github.io/text-analysis-with-R/word-embeddings.html
 - https://smltar.com/embeddings.html
 - https://rstudio-pubs-static.s3.amazonaws.com/132792_864e3813b0ec47cb95c7e1e2e2ad83e7.html
+- https://smltar.com/mlclassification.html#classfirstattemptlookatdata
 
 
