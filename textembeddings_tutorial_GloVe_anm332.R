@@ -48,6 +48,17 @@ library(magrittr)
 library(pscl)
 #     install.packages("ggplot2")
 library(ggplot2)
+#install.packages("textrecipes")
+library(textrecipes)
+#install.packages("naivebayes")
+library(naivebayes)
+#install.packages("discrim")
+library(discrim)
+library(workflows)
+library(tidymodels)
+library(yardstick)
+
+
 
 # Bring in the data ##########################################################################################################
 
@@ -298,6 +309,7 @@ x2 <- ggplot(ter_forplot, aes(x=V1, y=V2, label=word))+
   theme_minimal()+
   xlab("First Dimension Created by GloVe")+
   ylab("Second Dimension Created by GloVe")
+x2
 
 
 # non-terrorism 50-word plot: ###########################
@@ -311,6 +323,7 @@ y2 <- ggplot(nonter_forplot, aes(x=V1, y=V2, label=word))+
   theme_minimal()+
   xlab("First Dimension Created by GloVe")+
   ylab("Second Dimension Created by GloVe")
+y2
 
 # full df 50-word plot: ###########################
 #grab 50 words
@@ -360,13 +373,6 @@ test30 <- fulldf[-train_ind, ] # 30% testing df
 type_rec <- 
   recipe(Type ~ rawtext, data=train70)
 
-#install.packages("textrecipes")
-library(textrecipes)
-#install.packages("naivebayes")
-library(naivebayes)
-#install.packages("discrim")
-library(discrim)
-
 type_rec <- type_rec %>%
   step_tokenize(rawtext) %>%
   step_tokenfilter(rawtext, max_tokens = 1e3) %>%
@@ -412,6 +418,8 @@ nb_rs_predictions <- collect_predictions(nb_rs)
 nb_rs_metrics
 # ROC AUC gives us the performance parameters for binary classification on the test set
 # average accuracy of 54% -- not great
+
+
 
 # let's visualize the ROC curve:
 nb_rs_predictions %>%
